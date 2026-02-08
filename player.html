@@ -33,23 +33,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
         }
         video {
             width: 100%;
             height: 100%;
             background: #000;
             border-radius: 8px;
-        }
-        .debug-info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-family: monospace;
         }
         .controls {
             display: flex;
@@ -124,9 +113,6 @@
         
         <div class="video-container">
             <video id="player" controls preload="auto"></video>
-            <div class="debug-info" id="debug">
-                Loading...
-            </div>
         </div>
         
         <div class="controls">
@@ -152,36 +138,17 @@
     <script>
         const player = document.getElementById('player');
         const playlistEl = document.getElementById('playlist');
-        const debugEl = document.getElementById('debug');
         let segments = [];
         let currentIndex = -1;
         let currentSpeed = 1.0;
 
-        // Debug info updater
-        function updateDebug() {
-            if (player.duration) {
-                debugEl.innerHTML = `
-                    Current: ${player.currentTime.toFixed(2)}s / ${player.duration.toFixed(2)}s<br>
-                    Buffered: ${player.buffered.length > 0 ? player.buffered.end(0).toFixed(2) : 0}s<br>
-                    Ready State: ${player.readyState}<br>
-                    Network State: ${player.networkState}<br>
-                    Paused: ${player.paused}
-                `;
-            }
-        }
-
-        // Update debug every 500ms
-        setInterval(updateDebug, 500);
-
-        // Log seeking events
+        // Video event listeners (needed for proper seeking)
         player.addEventListener('seeking', () => {
             console.log('Seeking to:', player.currentTime);
-            debugEl.style.background = 'rgba(255,165,0,0.7)'; // Orange when seeking
         });
 
         player.addEventListener('seeked', () => {
             console.log('Seeked to:', player.currentTime);
-            debugEl.style.background = 'rgba(0,0,0,0.7)'; // Back to normal
         });
 
         player.addEventListener('loadedmetadata', () => {
@@ -194,8 +161,6 @@
 
         player.addEventListener('error', (e) => {
             console.error('Video error:', e, player.error);
-            debugEl.innerHTML = 'ERROR: ' + (player.error ? player.error.message : 'Unknown');
-            debugEl.style.background = 'rgba(255,0,0,0.7)';
         });
 
         // Set playback speed
@@ -265,7 +230,7 @@
             currentIndex = index;
             const seg = segments[index];
             player.src = `videos_with_subs/${seg.file}`;
-            player.load(); // Force reload
+            player.load();
             player.playbackRate = currentSpeed;
             player.play().catch(e => console.error('Play failed:', e));
             renderPlaylist();
