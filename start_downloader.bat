@@ -1,0 +1,2 @@
+@echo off
+powershell -NoExit -Command "$host.UI.RawUI.BackgroundColor='DarkGreen'; $host.UI.RawUI.ForegroundColor='White'; cls; Write-Host '=== DOWNLOADER ===' -ForegroundColor Yellow; python downloader2.py"

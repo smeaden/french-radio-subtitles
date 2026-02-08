@@ -1,0 +1,2 @@
+@echo off
+powershell -NoExit -Command "$host.UI.RawUI.BackgroundColor='DarkBlue'; $host.UI.RawUI.ForegroundColor='White'; cls; Write-Host '=== TRANSLATOR ===' -ForegroundColor Yellow; python translator.py"

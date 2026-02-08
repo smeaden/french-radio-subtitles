@@ -1,0 +1,2 @@
+@echo off
+powershell -NoExit -Command "$host.UI.RawUI.BackgroundColor='DarkMagenta'; $host.UI.RawUI.ForegroundColor='White'; cls; Write-Host '=== PLAYLIST GENERATOR ===' -ForegroundColor Yellow; python playlist_generator.py"

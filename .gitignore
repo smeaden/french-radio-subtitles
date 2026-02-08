@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+ENV/
+env/
+*.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Python package caches
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Whisper cache (optional, if you don't want to track models)
+.cache/whisper/
+
+# IDE/editor specific files (VSCode example)
+.vscode/
+.idea/
+
+# Audio output or intermediate files (optional)
+output/
+*.wav
+*.mp3
+
+# Working directories - generated content
+ts_segments/
+chunks/
+translated/
+videos_with_subs/
+playlist/
+
+# Test files
+test_player.html

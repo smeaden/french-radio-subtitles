@@ -1,0 +1,2 @@
+@echo off
+powershell -NoExit -Command "$host.UI.RawUI.BackgroundColor='DarkCyan'; $host.UI.RawUI.ForegroundColor='Black'; cls; Write-Host '=== HTTP SERVER ===' -ForegroundColor Yellow; python -m http.server 8000"

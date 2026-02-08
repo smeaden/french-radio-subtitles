@@ -1,0 +1,2 @@
+@echo off
+powershell -NoExit -Command "$host.UI.RawUI.BackgroundColor='DarkYellow'; $host.UI.RawUI.ForegroundColor='Black'; cls; Write-Host '=== AGGREGATOR ===' -ForegroundColor Red; python aggregator.py"
