@@ -21,11 +21,8 @@ def generate_playlist():
     segments = []
     deleted = 0
     
-    for mp4_file in sorted(output_folder.glob("*.mp4")):
-        # Skip temporary files
-        if "temp" in mp4_file.name.lower() or "concat" in mp4_file.name.lower():
-            continue
-        
+    # Look for chunk_*.mp4 files
+    for mp4_file in sorted(output_folder.glob("chunk_*.mp4")):
         mtime = mp4_file.stat().st_mtime
         age_hours = (now - mtime) / 3600
         
@@ -65,7 +62,7 @@ def generate_playlist():
     return len(segments)
 
 # Main
-print("[INFO] Simple playlist generator starting (Ctrl+C to exit)")
+print("[INFO] Playlist generator starting (Ctrl+C to exit)")
 print(f"[INFO] Rewind: {rewind_hours}h, Delete after: {delete_after_hours}h")
 
 while True:

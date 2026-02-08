@@ -26,24 +26,9 @@ def translate_french(text):
     translated = translation_model.generate(**inputs)
     return tokenizer.decode(translated[0], skip_special_tokens=True)
 
-def get_chunk_duration(chunk_file):
-    """Get duration using ffprobe"""
-    import subprocess
-    cmd = [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        str(chunk_file)
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        return float(result.stdout.strip())
-    except:
-        return 60.0
-
 def split_text_by_time(segments, source_files):
     """
-    Split Whisper segments back into original 4-second chunks
+    Split Whisper segments back into original ~4-second chunks
     Returns dict mapping source_file -> {french, english, start, end}
     """
     # Calculate duration per source file (approximately 4s each)
@@ -56,7 +41,6 @@ def split_text_by_time(segments, source_files):
         
         # Find all segments that overlap with this time window
         texts_fr = []
-        texts_en = []
         
         for seg in segments:
             seg_start = seg['start']
@@ -106,7 +90,7 @@ while True:
         result = whisper_model.transcribe(
             str(chunk_file),
             language='fr',
-            word_timestamps=True
+            word_timestamps=False  # Use segment-level timestamps for now
         )
         
         # Split back into 4-second segments
@@ -122,6 +106,8 @@ while True:
                     'ts_file': source_file,
                     'french': data['french'],
                     'english': data['english'],
+                    'start': data['start'],
+                    'end': data['end'],
                     'chunk_source': chunk_file.name
                 }, f, ensure_ascii=False, indent=2)
             

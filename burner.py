@@ -3,115 +3,158 @@ import subprocess
 import json
 
 # --- Configuration ---
-ts_folder = Path("ts_segments")
+chunks_folder = Path("chunks")
 translated_folder = Path("translated")
 output_folder = Path("videos_with_subs")
 output_folder.mkdir(exist_ok=True)
 
-def create_srt(text, duration_seconds, output_path, position='bottom'):
-    """Create an SRT file with positioning tag"""
+def create_multi_cue_srt(segments_data, duration, output_path, language='french'):
+    """Create an SRT file with multiple timed cues"""
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("1\n")
-        f.write("00:00:00,000 --> ")
+        cue_number = 1
         
-        # Format duration as HH:MM:SS,mmm
-        hours = int(duration_seconds // 3600)
-        minutes = int((duration_seconds % 3600) // 60)
-        seconds = int(duration_seconds % 60)
-        milliseconds = int((duration_seconds % 1) * 1000)
-        
-        f.write(f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}\n")
-        
-        # Add alignment tag directly in subtitle text
-        if position == 'top':
-            f.write(f"{{\\an8}}{text}\n\n")  # an8 = top-center
-        else:
-            f.write(f"{{\\an2}}{text}\n\n")  # an2 = bottom-center
+        for i, (source_file, data) in enumerate(segments_data.items()):
+            start_time = data['start']
+            end_time = data['end']
+            
+            # Get the appropriate text
+            text = data['french'] if language == 'french' else data['english']
+            
+            if not text.strip():
+                continue
+            
+            # Format times as HH:MM:SS,mmm
+            def format_time(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                millis = int((seconds % 1) * 1000)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+            
+            f.write(f"{cue_number}\n")
+            f.write(f"{format_time(start_time)} --> {format_time(end_time)}\n")
+            
+            # Add positioning tag
+            if language == 'french':
+                f.write(f"{{\\an8}}{text}\n\n")  # Top
+            else:
+                f.write(f"{{\\an2}}{text}\n\n")  # Bottom
+            
+            cue_number += 1
 
-def get_duration(ts_file):
-    """Get duration of TS file using ffprobe"""
+def get_duration(chunk_file):
+    """Get duration using ffprobe"""
     cmd = [
         "ffprobe", "-v", "error",
         "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1",
-        str(ts_file)
+        str(chunk_file)
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     try:
         return float(result.stdout.strip())
     except:
-        return 4.0
+        return 60.0
 
-# Process each JSON file
-for json_file in sorted(translated_folder.glob("*.json")):
-    base_name = json_file.stem
-    ts_file = ts_folder / f"{base_name}.ts"
+# Process each chunk
+processed = set()
+
+print("[INFO] Burner watching for chunks to process...")
+
+import time
+while True:
+    chunk_files = sorted(chunks_folder.glob("chunk_*.ts"))
     
-    if not ts_file.exists():
-        print(f"[WARN] TS file not found for {json_file.name}, skipping")
-        continue
+    for chunk_file in chunk_files:
+        if chunk_file.name in processed:
+            continue
+        
+        # Load metadata
+        metadata_file = chunks_folder / f"{chunk_file.stem}.json"
+        if not metadata_file.exists():
+            print(f"[WARN] No metadata for {chunk_file.name}, skipping")
+            continue
+        
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+        
+        source_files = metadata['source_files']
+        
+        # Check if all translation JSONs exist
+        segments_data = {}
+        all_translations_ready = True
+        
+        for source_file in source_files:
+            base_name = Path(source_file).stem
+            json_file = translated_folder / f"{base_name}.json"
+            
+            if not json_file.exists():
+                all_translations_ready = False
+                break
+            
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                segments_data[source_file] = data
+        
+        if not all_translations_ready:
+            continue
+        
+        print(f"[INFO] Processing {chunk_file.name} with {len(segments_data)} segments...")
+        
+        # Get duration
+        duration = get_duration(chunk_file)
+        
+        # Create SRT files with multiple cues
+        french_srt = output_folder / f"{chunk_file.stem}_fr.srt"
+        english_srt = output_folder / f"{chunk_file.stem}_en.srt"
+        
+        create_multi_cue_srt(segments_data, duration, french_srt, 'french')
+        create_multi_cue_srt(segments_data, duration, english_srt, 'english')
+        
+        # Output MP4 file
+        output_file = output_folder / f"{chunk_file.stem}.mp4"
+        
+        # Fix paths for Windows
+        french_srt_escaped = str(french_srt).replace('\\', '/').replace(':', '\\:')
+        english_srt_escaped = str(english_srt).replace('\\', '/').replace(':', '\\:')
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", f"color=c=black:s=1280x720:d={duration}",
+            "-i", str(chunk_file),
+            "-filter_complex",
+            (
+                # French at TOP
+                "[0:v]subtitles=" + french_srt_escaped + ":force_style='"
+                "FontName=Arial,FontSize=18,PrimaryColour=&H00FFFF,OutlineColour=&H000000,"
+                "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
+                "[v1];"
+                # English at BOTTOM
+                "[v1]subtitles=" + english_srt_escaped + ":force_style='"
+                "FontName=Arial,FontSize=18,PrimaryColour=&H00FF00,OutlineColour=&H000000,"
+                "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
+                "[vout]"
+            ),
+            "-map", "[vout]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-c:a", "copy",
+            "-shortest",
+            str(output_file)
+        ]
+        
+        print(f"[INFO] Creating video {output_file.name}...")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"[ERROR] FFmpeg failed:")
+            print(result.stderr)
+        else:
+            print(f"[INFO] Created {output_file.name}")
+            # Clean up temporary SRT files
+            french_srt.unlink()
+            english_srt.unlink()
+            processed.add(chunk_file.name)
     
-    # Load translation data
-    with open(json_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    french_text = data.get("french", "")
-    english_text = data.get("english", "")
-    
-    if not french_text or not english_text:
-        print(f"[WARN] Missing text in {json_file.name}, skipping")
-        continue
-    
-    # Get duration
-    duration = get_duration(ts_file)
-    
-    # Create SRT files with inline positioning
-    french_srt = output_folder / f"{base_name}_fr.srt"
-    english_srt = output_folder / f"{base_name}_en.srt"
-    
-    create_srt(french_text, duration, french_srt, position='top')
-    create_srt(english_text, duration, english_srt, position='bottom')
-    
-    # Output MP4 file
-    output_file = output_folder / f"{base_name}.mp4"
-    
-    # Fix path for Windows
-    french_srt_escaped = str(french_srt).replace('\\', '/').replace(':', '\\:')
-    english_srt_escaped = str(english_srt).replace('\\', '/').replace(':', '\\:')
-    
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "lavfi", "-i", f"color=c=black:s=1280x720:d={duration}",
-        "-i", str(ts_file),
-        "-filter_complex",
-        (
-            # French at TOP
-            "[0:v]subtitles=" + french_srt_escaped + ":force_style='"
-            "FontName=Arial,FontSize=18,PrimaryColour=&H00FFFF,OutlineColour=&H000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
-            "[v1];"
-            # English at BOTTOM
-            "[v1]subtitles=" + english_srt_escaped + ":force_style='"
-            "FontName=Arial,FontSize=18,PrimaryColour=&H00FF00,OutlineColour=&H000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
-            "[vout]"
-        ),
-        "-map", "[vout]",
-        "-map", "1:a",
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-c:a", "copy",
-        "-shortest",
-        str(output_file)
-    ]
-    
-    print(f"[INFO] Processing {ts_file.name} -> {output_file.name}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        print(f"[ERROR] FFmpeg failed:")
-        print(result.stderr)
-    else:
-        print(f"[INFO] Created {output_file.name}")
-        french_srt.unlink()
-        english_srt.unlink()
+    time.sleep(5)
