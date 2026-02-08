@@ -26,13 +26,14 @@
         }
         .video-container {
             width: 100%;
-            height: 540px; /* Fixed height: 16:9 ratio for 960px width */
+            height: 540px;
             background: #000;
             border-radius: 8px;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         video {
             width: 100%;
@@ -40,12 +41,23 @@
             background: #000;
             border-radius: 8px;
         }
+        .debug-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
         .controls {
             display: flex;
             justify-content: center;
             gap: 10px;
             margin-bottom: 20px;
-            min-height: 50px; /* Fixed height for controls */
+            min-height: 50px;
+            flex-wrap: wrap;
         }
         button {
             background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
@@ -59,6 +71,23 @@
         }
         button:hover {
             opacity: 0.9;
+        }
+        .speed-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .speed-btn {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        .speed-btn.active {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+        .speed-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-right: 10px;
         }
         .playlist {
             background: rgba(0, 0, 0, 0.5);
@@ -94,7 +123,10 @@
         <div class="info">Live French radio with burned-in dual subtitles • 6 hour rewind</div>
         
         <div class="video-container">
-            <video id="player" controls></video>
+            <video id="player" controls preload="auto"></video>
+            <div class="debug-info" id="debug">
+                Loading...
+            </div>
         </div>
         
         <div class="controls">
@@ -103,14 +135,80 @@
             <button onclick="playNext()">⏭ Next</button>
         </div>
         
+        <div class="controls">
+            <span class="speed-label">Playback Speed:</span>
+            <div class="speed-controls">
+                <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
+                <button class="speed-btn" onclick="setSpeed(0.75)">0.75x</button>
+                <button class="speed-btn active" onclick="setSpeed(1.0)" id="speed-1">1.0x</button>
+                <button class="speed-btn" onclick="setSpeed(1.25)">1.25x</button>
+                <button class="speed-btn" onclick="setSpeed(1.5)">1.5x</button>
+            </div>
+        </div>
+        
         <div class="playlist" id="playlist"></div>
     </div>
 
     <script>
         const player = document.getElementById('player');
         const playlistEl = document.getElementById('playlist');
+        const debugEl = document.getElementById('debug');
         let segments = [];
         let currentIndex = -1;
+        let currentSpeed = 1.0;
+
+        // Debug info updater
+        function updateDebug() {
+            if (player.duration) {
+                debugEl.innerHTML = `
+                    Current: ${player.currentTime.toFixed(2)}s / ${player.duration.toFixed(2)}s<br>
+                    Buffered: ${player.buffered.length > 0 ? player.buffered.end(0).toFixed(2) : 0}s<br>
+                    Ready State: ${player.readyState}<br>
+                    Network State: ${player.networkState}<br>
+                    Paused: ${player.paused}
+                `;
+            }
+        }
+
+        // Update debug every 500ms
+        setInterval(updateDebug, 500);
+
+        // Log seeking events
+        player.addEventListener('seeking', () => {
+            console.log('Seeking to:', player.currentTime);
+            debugEl.style.background = 'rgba(255,165,0,0.7)'; // Orange when seeking
+        });
+
+        player.addEventListener('seeked', () => {
+            console.log('Seeked to:', player.currentTime);
+            debugEl.style.background = 'rgba(0,0,0,0.7)'; // Back to normal
+        });
+
+        player.addEventListener('loadedmetadata', () => {
+            console.log('Metadata loaded, duration:', player.duration);
+        });
+
+        player.addEventListener('canplay', () => {
+            console.log('Can play');
+        });
+
+        player.addEventListener('error', (e) => {
+            console.error('Video error:', e, player.error);
+            debugEl.innerHTML = 'ERROR: ' + (player.error ? player.error.message : 'Unknown');
+            debugEl.style.background = 'rgba(255,0,0,0.7)';
+        });
+
+        // Set playback speed
+        function setSpeed(speed) {
+            currentSpeed = speed;
+            player.playbackRate = speed;
+            
+            // Update button styling
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
 
         // Load playlist
         async function loadPlaylist() {
@@ -167,7 +265,9 @@
             currentIndex = index;
             const seg = segments[index];
             player.src = `videos_with_subs/${seg.file}`;
-            player.play();
+            player.load(); // Force reload
+            player.playbackRate = currentSpeed;
+            player.play().catch(e => console.error('Play failed:', e));
             renderPlaylist();
         }
 
@@ -196,7 +296,7 @@
 
         // Initial load and periodic refresh
         loadPlaylist();
-        setInterval(loadPlaylist, 15000); // Refresh every 15 seconds
+        setInterval(loadPlaylist, 15000);
     </script>
 </body>
 </html>

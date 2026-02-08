@@ -8,6 +8,16 @@ translated_folder = Path("translated")
 output_folder = Path("videos_with_subs")
 output_folder.mkdir(exist_ok=True)
 
+# --- Font Configuration ---
+FONT_SIZE = 18
+FONT_NAME = "Arial"
+FONT_OUTLINE = 2
+FONT_SHADOW = 1
+MARGIN_V = 30
+FRENCH_COLOR = "&H00FFFF"  # Cyan
+ENGLISH_COLOR = "&H00FF00"  # Yellow/Green
+OUTLINE_COLOR = "&H000000"  # Black
+
 def create_multi_cue_srt(segments_data, duration, output_path, language='french'):
     """Create an SRT file with multiple timed cues"""
     with open(output_path, "w", encoding="utf-8") as f:
@@ -118,6 +128,19 @@ while True:
         french_srt_escaped = str(french_srt).replace('\\', '/').replace(':', '\\:')
         english_srt_escaped = str(english_srt).replace('\\', '/').replace(':', '\\:')
         
+        # Build font style strings using constants
+        french_style = (
+            f"FontName={FONT_NAME},FontSize={FONT_SIZE},PrimaryColour={FRENCH_COLOR},"
+            f"OutlineColour={OUTLINE_COLOR},BorderStyle=1,Outline={FONT_OUTLINE},"
+            f"Shadow={FONT_SHADOW},MarginV={MARGIN_V},Bold=1"
+        )
+        
+        english_style = (
+            f"FontName={FONT_NAME},FontSize={FONT_SIZE},PrimaryColour={ENGLISH_COLOR},"
+            f"OutlineColour={OUTLINE_COLOR},BorderStyle=1,Outline={FONT_OUTLINE},"
+            f"Shadow={FONT_SHADOW},MarginV={MARGIN_V},Bold=1"
+        )
+        
         cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi", "-i", f"color=c=black:s=1280x720:d={duration}",
@@ -125,20 +148,17 @@ while True:
             "-filter_complex",
             (
                 # French at TOP
-                "[0:v]subtitles=" + french_srt_escaped + ":force_style='"
-                "FontName=Arial,FontSize=18,PrimaryColour=&H00FFFF,OutlineColour=&H000000,"
-                "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
-                "[v1];"
+                f"[0:v]subtitles={french_srt_escaped}:force_style='{french_style}'[v1];"
                 # English at BOTTOM
-                "[v1]subtitles=" + english_srt_escaped + ":force_style='"
-                "FontName=Arial,FontSize=18,PrimaryColour=&H00FF00,OutlineColour=&H000000,"
-                "BorderStyle=1,Outline=2,Shadow=1,MarginV=30,Bold=1'"
-                "[vout]"
+                f"[v1]subtitles={english_srt_escaped}:force_style='{english_style}'[vout]"
             ),
             "-map", "[vout]",
             "-map", "1:a",
             "-c:v", "libx264",
             "-preset", "ultrafast",
+            "-g", "30",              # Keyframe every 30 frames (1 second at 30fps)
+            "-keyint_min", "30",     # Minimum keyframe interval
+            "-sc_threshold", "0",    # Disable scene change detection for regular keyframes
             "-c:a", "copy",
             "-shortest",
             str(output_file)

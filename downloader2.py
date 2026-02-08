@@ -1,20 +1,9 @@
-
-import signal
-import sys
-
-sentinel_file = Path("ts_segments/.shutdown")
-
-def signal_handler(sig, frame):
-    print('\n[INFO] Stopping downloader and notifying aggregator...')
-    sentinel_file.touch()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
-
 import requests
 from pathlib import Path
 from urllib.parse import urljoin
 import time
+import signal
+import sys
 
 # Configuration
 m3u8_url = "https://stream.radiofrance.fr/franceinfo/franceinfo_hifi.m3u8?id=radiofrance"
@@ -24,6 +13,15 @@ ts_folder.mkdir(exist_ok=True)
 seen = set()
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+sentinel_file = ts_folder / ".shutdown"
+
+def signal_handler(sig, frame):
+    print('\n[INFO] Stopping downloader and notifying aggregator...')
+    sentinel_file.touch()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 def get_playlist(url):
     r = requests.get(url, headers=HEADERS)
